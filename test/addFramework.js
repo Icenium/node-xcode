@@ -45,7 +45,6 @@ function frameworkSearchPaths(proj) {
 exports.addFramework = {
     'should return a pbxFile': function (test) {
         var newFile = proj.addFramework('libsqlite3.dylib');
-        console.log(newFile);
 
         test.equal(newFile.constructor, pbxFile);
         test.done()
@@ -81,7 +80,7 @@ exports.addFramework = {
             fileRefEntry = fileRefSection[newFile.fileRef];
 
         test.equal(fileRefEntry.isa, 'PBXFileReference');
-        test.equal(fileRefEntry.lastKnownFileType, '"compiled.mach-o.dylib"');
+        test.equal(fileRefEntry.lastKnownFileType, 'compiled.mach-o.dylib');
         test.equal(fileRefEntry.name, '"libsqlite3.dylib"');
         test.equal(fileRefEntry.path, '"usr/lib/libsqlite3.dylib"');
         test.equal(fileRefEntry.sourceTree, 'SDKROOT');
@@ -128,7 +127,7 @@ exports.addFramework = {
         test.equal(buildFileEntry.fileRef, newFile.fileRef);
         test.equal(buildFileEntry.fileRef_comment, 'libsqlite3.dylib');
         test.deepEqual(buildFileEntry.settings, { ATTRIBUTES: [ 'Weak' ] });
-        
+
         test.done();
     },
     'should add to the Frameworks PBXGroup': function (test) {
@@ -153,6 +152,13 @@ exports.addFramework = {
             frameworks = proj.pbxFrameworksBuildPhaseObj();
 
         test.equal(frameworks.files.length, 16);
+        test.done();
+    },
+    'should not add to the PBXFrameworksBuildPhase': function (test) {
+        var newFile = proj.addFramework('Private.framework', {link: false}),
+            frameworks = proj.pbxFrameworksBuildPhaseObj();
+
+        test.equal(frameworks.files.length, 15);
         test.done();
     },
     'should have the right values for the Sources entry': function (test) {
@@ -188,12 +194,42 @@ exports.addFramework = {
         // should add path to framework search path
         var frameworkPaths = frameworkSearchPaths(proj);
             expectedPath = '"\\"/path/to\\""';
-        
+
         for (i = 0; i < frameworkPaths.length; i++) {
             var current = frameworkPaths[i];
             test.ok(current.indexOf('"$(inherited)"') >= 0);
             test.ok(current.indexOf(expectedPath) >= 0);
         }
         test.done();
-    }
+    },
+    'should add to the Embed Frameworks PBXCopyFilesBuildPhase': function (test) {
+        var newFile = proj.addFramework('/path/to/SomeEmbeddableCustom.framework', {customFramework: true, embed: true}),
+            frameworks = proj.pbxEmbedFrameworksBuildPhaseObj();
+
+        var buildPhaseInPbx = proj.pbxEmbedFrameworksBuildPhaseObj();
+        test.equal(buildPhaseInPbx.dstSubfolderSpec, 10);
+
+        test.equal(frameworks.files.length, 1);
+        test.done();
+    },
+    'should not add to the Embed Frameworks PBXCopyFilesBuildPhase by default': function (test) {
+        var newFile = proj.addFramework('/path/to/Custom.framework', {customFramework: true}),
+            frameworks = proj.pbxEmbedFrameworksBuildPhaseObj();
+
+        test.equal(frameworks.files.length, 0);
+        test.done();
+    },
+    'should add the PBXBuildFile object correctly /w signable frameworks': function (test) {
+        var newFile = proj.addFramework('/path/to/SomeSignable.framework', { customFramework: true, embed: true, sign: true }),
+            buildFileSection = proj.pbxBuildFileSection(),
+            buildFileEntry = buildFileSection[newFile.uuid];
+
+        test.equal(newFile.group, 'Embed Frameworks');
+        test.equal(buildFileEntry.isa, 'PBXBuildFile');
+        test.equal(buildFileEntry.fileRef, newFile.fileRef);
+        test.equal(buildFileEntry.fileRef_comment, 'SomeSignable.framework');
+        test.deepEqual(buildFileEntry.settings, { ATTRIBUTES: [ 'CodeSignOnCopy' ] });
+
+        test.done();
+    },
 }
